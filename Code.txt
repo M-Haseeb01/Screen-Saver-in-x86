@@ -1,0 +1,314 @@
+; Screen saver
+[org 0x0100] 
+ jmp start 
+
+message: db 'Screen Saver' ; string to be printed
+loc: dw 200
+buffer: times 4000 dw 0 ; buffer to save video memory
+loc2: dw 200
+xyz times 2000 dw 0
+;-------------------------------
+Display:
+pusha;
+call store_buffer
+call Delay
+call clrscr ; call the clrscr subroutine
+call Object
+mov cx,6
+A1:
+call saveScreen
+call clrscr
+call restoreScreen
+call saveScreen
+call clrscr
+add word [loc2],6
+add word [loc],6
+call restoreScreen
+call Delay
+call Delay
+call Delay
+call saveScreen
+call Delay
+call clrscr
+call restoreScreen
+call saveScreen
+call clrscr
+call restoreScreen
+mov ah, 01h        ; Set AH to 01h to check for a keypress
+int 16h            ; Call interrupt 16h (BIOS keyboard services)
+jnz Exit    ; Jump to key_pressed if a key is pressed
+jmp A1;
+
+
+Exit:
+call load_buffer
+popa;
+ret;
+;--------------Object
+
+Object:
+push bp;
+mov bp,sp;	   
+push es;
+push ax;
+push si;
+mov ax, 0xb800 					
+mov es, ax 
+	
+
+mov bx,[loc];STORING LOCAION
+mov ah,0x0F
+
+mov al,'@';
+mov cx,16;
+mov di,[loc];
+L1:
+mov word [es:di],ax;
+add di,2;
+dec cx;
+jnz L1;
+mov [loc],bx;
+
+add word[loc],160
+mov ah,0x0F
+mov al,'!';
+mov cx,5;
+mov di,[loc];
+L2:
+mov word [es:di],ax;
+add di,160;
+dec cx;
+jnz L2;
+
+mov ah,0x0F
+mov al,'@';
+mov cx,16;
+L3:
+mov word [es:di],ax;
+add di,2;
+dec cx;
+jnz L3;
+
+
+mov ah,0x0F
+mov al,'!';
+sub di,160*5+2;
+mov cx,5;
+L4:
+mov word [es:di],ax;
+add di,160;
+dec cx;
+jnz L4;
+call printstr
+
+mov si,[loc];
+
+
+pop si;
+pop ax;
+pop es;
+pop bp;
+ret
+
+;----------------------
+Brick:
+push bp;
+mov bp,sp;	   
+push es;
+push ax;
+push si;
+mov ax, 0xb800 					
+mov es, ax 				
+mov di, 322		
+
+
+mov si,[bp+4];STORING LOCAION
+mov bh,[bp+6];Color
+mov cx,10;
+mov bl,0x2d;
+L11:
+mov word [es:si],bx;
+add si,2
+dec cx;
+loop L11;
+pop si;
+pop ax;
+pop es;
+pop bp;
+ret 4
+
+;-----------------Delay Function
+Delay:
+push cx
+mov cx, 10        ; change the values to increase delay time
+delay_loop1:
+push cx
+mov cx, 0x8888
+delay_loop2:
+loop delay_loop2
+pop cx
+loop delay_loop1
+pop cx
+ret
+;---------------------
+store_buffer:
+push    bp
+mov     bp, sp
+push    ax
+push    cx
+push    si
+push    di
+push    es
+push    ds
+
+mov     ax, 0xb800  ; points to video memory
+mov     ds, ax
+mov     si, 0
+mov     ax, cs
+mov     es, ax
+mov     di, buffer
+mov     cx, 4000
+
+cld
+rep     movsw    ; move data from video memory to buffer
+
+pop     ds
+pop     es
+pop     di
+pop     si
+pop     cx
+pop     ax
+pop     bp
+ret
+
+load_buffer:
+push    bp
+mov     bp, sp
+push    ax
+push    cx
+push    si
+push    di
+push    es
+push    ds
+
+mov     ax, 0xb800      ; points to video memory
+mov     es, ax
+mov     di, 0
+; points to buffer
+mov     ax, cs
+mov     ds, ax
+mov     si, buffer
+mov     cx, 4000
+
+cld
+
+rep     movsw       ; load buffer in video memory
+
+pop     ds
+pop     es
+pop     di
+pop     si
+pop     cx
+pop     ax
+pop     bp
+ret
+
+
+
+
+;------------------------Function to print string
+printstr:	
+          pusha;
+
+			mov ax, 0xb800
+			mov es, ax				; point es to video base
+
+	         mov di,[loc];
+             add di,4;
+             add di,160*2
+			mov si, message			; point si to string
+			mov cx, 12			; load length of string in cx
+			mov ah,0x01			; load attribute in ah
+
+nextchar:	mov al, [si]			; load next char of string
+			mov [es:di], ax			; show this char on screen
+			add di, 2				; move to next screen location
+			add si, 1				; move to next char in string
+			
+			loop nextchar			; repeat the operation cx times
+
+			popa;
+			ret
+
+
+
+
+
+;---------------------Code for clear Screen
+clrscr:
+push ax
+push es
+push di
+mov ax, 0xb800
+mov es, ax
+mov di, 0
+screen:
+mov word[es:di], 0x0720
+add di, 2
+cmp di, 4000
+jle screen
+
+pop di
+pop es
+pop ax
+ret
+;--------------------
+
+restoreScreen:
+pusha
+mov bp,sp
+mov bx , 0
+mov cx , 500
+mov ax , 0xb800
+mov es , ax
+mov di,[loc2]
+loop2_:
+mov ax , [cs:xyz + bx]
+MOV [es:di] , ax
+add bx , 2
+add di , 2
+loop loop2_
+popa
+ret
+;--------------
+
+saveScreen:
+
+pusha
+mov ax , 0xb800
+mov es , ax
+mov bx , 0
+mov cx , 500
+mov di,[loc];
+sub di,160
+
+loop_:
+
+MOV  dx , [es:di]
+mov [xyz + bx] , dx
+add bx , 2
+add di , 2
+loop loop_
+
+
+popa
+ret
+;------------------
+
+
+start:
+call Display
+
+
+mov ax, 0x4c00 ; terminate program
+int 0x21
